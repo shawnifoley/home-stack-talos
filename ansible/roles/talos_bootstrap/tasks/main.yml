@@ -1,0 +1,226 @@
+---
+- name: Set effective Talos bootstrap vars
+  ansible.builtin.set_fact:
+    talos_masters: "{{ groups['masters'] | default(groups['controlplane'] | default([])) }}"
+    talos_workers: "{{ groups['workers'] | default([]) }}"
+    talos_rendered_dir: "{{ talos_config_dir }}/rendered"
+
+- name: Assert at least one master is configured
+  ansible.builtin.assert:
+    that:
+      - talos_masters | length > 0
+    fail_msg: "No masters found in inventory."
+
+- name: Set Talos endpoint from override or first master static IP
+  ansible.builtin.set_fact:
+    talos_endpoint_effective: "{{ talos_endpoint | default(hostvars[talos_masters[0]].talos_static_ip | default(hostvars[talos_masters[0]].ansible_host | default(talos_masters[0]))) }}"
+
+- name: Ensure required CLIs are installed
+  ansible.builtin.command: "command -v {{ item }}"
+  loop:
+    - talosctl
+    - yq
+  changed_when: false
+
+- name: Ensure Talos config directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ talos_config_dir }}"
+    - "{{ talos_rendered_dir }}"
+
+- name: Check if Talos config already exists
+  ansible.builtin.stat:
+    path: "{{ talos_config_dir }}/talosconfig"
+  register: talosconfig_stat
+
+- name: Set bootstrap mode flags
+  ansible.builtin.set_fact:
+    talos_fresh_bootstrap: "{{ not talosconfig_stat.stat.exists }}"
+
+- name: Fail if Talos state already exists (fresh bootstrap guard)
+  ansible.builtin.fail:
+    msg: >-
+      Existing Talos state found at {{ talos_config_dir }}/talosconfig.
+      This bootstrap flow is fresh-only to avoid PKI mismatches.
+      Remove local state (rm -rf {{ talos_config_dir }}) and rerun, or set
+      talos_allow_existing_state=true to bypass this guard.
+  when:
+    - talosconfig_stat.stat.exists
+    - not (talos_allow_existing_state | default(false) | bool)
+
+- name: Generate Talos base configs (first run)
+  ansible.builtin.command: >
+    talosctl gen config {{ talos_cluster_name }}
+    https://{{ talos_endpoint_effective }}:6443
+    --output-dir {{ talos_config_dir }}
+  when: not talosconfig_stat.stat.exists
+  changed_when: true
+
+- name: Render controlplane node patches
+  ansible.builtin.template:
+    src: controlplane.patch.yaml.j2
+    dest: "{{ talos_rendered_dir }}/controlplane-{{ idx }}.patch.yaml"
+    mode: "0644"
+  loop: "{{ talos_masters }}"
+  loop_control:
+    index_var: idx
+    loop_var: host
+
+- name: Build controlplane base machine config without default HostnameConfig
+  ansible.builtin.shell: >
+    yq eval 'select(.kind != "HostnameConfig")'
+    {{ talos_config_dir }}/controlplane.yaml
+    > {{ talos_rendered_dir }}/controlplane-base.yaml
+  args:
+    executable: /bin/bash
+  changed_when: true
+
+- name: Build controlplane machine configs from base + per-node patch
+  ansible.builtin.command: >
+    talosctl machineconfig patch
+    {{ talos_rendered_dir }}/controlplane-base.yaml
+    --patch @{{ talos_rendered_dir }}/controlplane-{{ idx }}.patch.yaml
+    --output {{ talos_rendered_dir }}/controlplane-{{ idx }}.yaml
+  changed_when: true
+  loop: "{{ range(0, talos_masters | length) | list }}"
+  loop_control:
+    loop_var: idx
+
+- name: Check master reachability on static IPs
+  ansible.builtin.command: >
+    talosctl --talosconfig {{ talos_config_dir }}/talosconfig
+    version
+    --nodes {{ hostvars[host].talos_static_ip | default(hostvars[host].ansible_host | default(host)) }}
+    --endpoints {{ hostvars[host].talos_static_ip | default(hostvars[host].ansible_host | default(host)) }}
+  register: talos_master_reachability
+  changed_when: false
+  failed_when: false
+  loop: "{{ talos_masters }}"
+  loop_control:
+    loop_var: host
+
+- name: Apply controlplane configs to DHCP nodes (first attempt)
+  ansible.builtin.command: >
+    talosctl --talosconfig {{ talos_config_dir }}/talosconfig
+    apply-config
+    --insecure
+    --mode reboot
+    --nodes {{ hostvars[talos_masters[idx]].talos_dhcp_ip | default(hostvars[talos_masters[idx]].ansible_host | default(talos_masters[idx])) }}
+    --file {{ talos_rendered_dir }}/controlplane-{{ idx }}.yaml
+  register: controlplane_apply_dhcp
+  changed_when: controlplane_apply_dhcp.rc == 0
+  failed_when: controlplane_apply_dhcp.rc != 0
+  retries: 6
+  delay: 5
+  until: controlplane_apply_dhcp.rc == 0
+  loop: "{{ range(0, talos_masters | length) | list }}"
+  loop_control:
+    loop_var: idx
+  when: talos_fresh_bootstrap or ((talos_master_reachability.results[idx].rc | default(1) | int) != 0)
+
+- name: Render worker node patches
+  ansible.builtin.template:
+    src: worker.patch.yaml.j2
+    dest: "{{ talos_rendered_dir }}/worker-{{ idx }}.patch.yaml"
+    mode: "0644"
+  loop: "{{ talos_workers }}"
+  loop_control:
+    index_var: idx
+    loop_var: host
+  when: talos_workers | length > 0
+
+- name: Build worker base machine config without default HostnameConfig
+  ansible.builtin.shell: >
+    yq eval 'select(.kind != "HostnameConfig")'
+    {{ talos_config_dir }}/worker.yaml
+    > {{ talos_rendered_dir }}/worker-base.yaml
+  args:
+    executable: /bin/bash
+  changed_when: true
+  when: talos_workers | length > 0
+
+- name: Build worker machine configs from base + per-node patch
+  ansible.builtin.command: >
+    talosctl machineconfig patch
+    {{ talos_rendered_dir }}/worker-base.yaml
+    --patch @{{ talos_rendered_dir }}/worker-{{ idx }}.patch.yaml
+    --output {{ talos_rendered_dir }}/worker-{{ idx }}.yaml
+  changed_when: true
+  loop: "{{ range(0, talos_workers | length) | list }}"
+  loop_control:
+    loop_var: idx
+  when: talos_workers | length > 0
+
+- name: Check worker reachability on static IPs
+  ansible.builtin.command: >
+    talosctl --talosconfig {{ talos_config_dir }}/talosconfig
+    version
+    --nodes {{ hostvars[host].talos_static_ip | default(hostvars[host].ansible_host | default(host)) }}
+    --endpoints {{ hostvars[host].talos_static_ip | default(hostvars[host].ansible_host | default(host)) }}
+  register: talos_worker_reachability
+  changed_when: false
+  failed_when: false
+  loop: "{{ talos_workers }}"
+  loop_control:
+    loop_var: host
+  when: talos_workers | length > 0
+
+- name: Apply worker configs to DHCP nodes (first attempt)
+  ansible.builtin.command: >
+    talosctl --talosconfig {{ talos_config_dir }}/talosconfig
+    apply-config
+    --insecure
+    --mode reboot
+    --nodes {{ hostvars[talos_workers[idx]].talos_dhcp_ip | default(hostvars[talos_workers[idx]].ansible_host | default(talos_workers[idx])) }}
+    --file {{ talos_rendered_dir }}/worker-{{ idx }}.yaml
+  register: worker_apply_dhcp
+  changed_when: worker_apply_dhcp.rc == 0
+  failed_when: worker_apply_dhcp.rc != 0
+  retries: 6
+  delay: 5
+  until: worker_apply_dhcp.rc == 0
+  loop: "{{ range(0, talos_workers | length) | list }}"
+  loop_control:
+    loop_var: idx
+  when:
+    - talos_workers | length > 0
+    - talos_fresh_bootstrap or ((talos_worker_reachability.results[idx].rc | default(1) | int) != 0)
+
+- name: Wait for Talos endpoint to respond
+  ansible.builtin.command: >
+    talosctl --talosconfig {{ talos_config_dir }}/talosconfig
+    version
+    --nodes {{ talos_endpoint_effective }}
+    --endpoints {{ talos_endpoint_effective }}
+  register: talos_endpoint_check
+  changed_when: false
+  retries: 30
+  delay: 5
+  until: talos_endpoint_check.rc == 0
+
+- name: Bootstrap Talos cluster
+  ansible.builtin.command: >
+    talosctl --talosconfig {{ talos_config_dir }}/talosconfig
+    bootstrap
+    --nodes {{ talos_endpoint_effective }}
+    --endpoints {{ talos_endpoint_effective }}
+  register: talos_bootstrap
+  failed_when: talos_bootstrap.rc != 0 and "already" not in (talos_bootstrap.stderr | lower)
+  changed_when: talos_bootstrap.rc == 0
+
+- name: Write kubeconfig from Talos
+  ansible.builtin.command: >
+    talosctl --talosconfig {{ talos_config_dir }}/talosconfig
+    kubeconfig {{ kubeconfig_yaml }}
+    --nodes {{ talos_endpoint_effective }}
+    --endpoints {{ talos_endpoint_effective }}
+    --force
+  changed_when: true
+
+- name: Lock down kubeconfig permissions
+  ansible.builtin.file:
+    path: "{{ kubeconfig_yaml }}"
+    mode: "0600"

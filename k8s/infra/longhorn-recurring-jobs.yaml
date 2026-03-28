@@ -30,9 +30,22 @@ metadata:
   name: backup-vaultwarden-daily
   namespace: longhorn-system
 spec:
-  cron: "51 2 * * *"
+  cron: "52 2 * * *"
   task: backup
   retain: 14
+  concurrency: 1
+  groups: []
+  labels: {}
+---
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: backup-mealie-weekly
+  namespace: longhorn-system
+spec:
+  cron: "52 2 * * 0"
+  task: backup
+  retain: 4
   concurrency: 1
   groups: []
   labels: {}

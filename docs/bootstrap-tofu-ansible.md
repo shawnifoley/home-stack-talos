@@ -1,33 +1,21 @@
-# Bootstrap (Tofu + Ansible)
+# Bootstrap (Tofu + Talosctl)
 
-This runbook builds Proxmox VMs with Tofu and configures k3s with Ansible.
+This runbook builds Proxmox VMs with Tofu, bootstraps Talos Kubernetes with `talosctl`, then applies optional platform components.
 
 ## Prereqs
 
 - Proxmox API access
-- `tofu`, `ansible`, `kubectl`
+- `tofu`, `kubectl`, `talosctl`
 - environment vars for Proxmox auth (for example `TF_VAR_pm_api_password`)
 
 ## Proxmox Template Setup (One-Time)
 
-Prepare Ubuntu cloud image with `qemu-guest-agent`, import into Proxmox, then convert to template:
+Create a Talos VM template in Proxmox and set `template_id` in `tofu/variables.*.tfvars` to that template.
 
-```bash
-apt-get install -y libguestfs-tools
-wget https://cloud-images.ubuntu.com/releases/jammy/release/ubuntu-22.04-server-cloudimg-amd64.img
-virt-customize -a ubuntu-22.04-server-cloudimg-amd64.img --install qemu-guest-agent
+This bootstrap is Talos-native: Tofu does not use cloud-init.
+Set `controlplane_ips`/`worker_ips` to the node addresses you expect Talos to use (typically via DHCP reservations).
 
-export vmid=1002
-qm create $vmid --name "ubuntu-jammy-cloudinit-template" --memory 2048 --net0 virtio,bridge=vmbr0
-mv ubuntu-22.04-server-cloudimg-amd64.img ubuntu-22.04-server-cloudimg-amd64.qcow2
-qm importdisk $vmid ubuntu-22.04-server-cloudimg-amd64.qcow2 local-lvm
-qm set $vmid --scsihw virtio-scsi-pci --scsi0 local-lvm:vm-1002-disk-0
-qm set $vmid --ide2 local-lvm:cloudinit
-qm set $vmid --bootdisk scsi0
-qm template $vmid
-```
-
-## 1) Tofu (provision VMs)
+## 1) Tofu (provision Talos VMs)
 
 Per environment:
 
@@ -52,32 +40,80 @@ Outputs:
 - `ansible/inventory/dev/hosts.ini`
 - `ansible/inventory/prod/hosts.ini`
 
-## 2) Ansible (install/configure k3s)
+## 2) Talos bootstrap (talosctl)
 
-Environment-specific vars:
+Bootstrap settings are managed via Ansible inventory/group vars:
 
 - `ansible/inventory/dev/group_vars/all.yml`
 - `ansible/inventory/prod/group_vars/all.yml`
 
+### Talos system extensions
+
+For extensions such as:
+
+```yaml
+customization:
+  systemExtensions:
+    officialExtensions:
+      - siderolabs/iscsi-tools
+      - siderolabs/qemu-guest-agent
+      - siderolabs/util-linux-tools
+```
+
+build a Talos Image Factory schematic/image and set `talos_install_image` in `ansible/inventory/*/group_vars/all.yml`.
+
 Run:
 
 ```bash
-cd ansible
-ansible-playbook -i inventory/dev/hosts.ini main.yml
+make talos-dev
 ```
 
 Make targets:
 
 ```bash
-make ansible-dev
-make ansible-prod
+make talos-dev-dry
+make talos-prod-dry
+make talos-dev
+make talos-prod
 ```
 
 Expected:
 
-- kubeconfig copied locally as `~/.kube/kubeconfig-{dev|prod}`
+- Talos configs generated under `~/.talos/<cluster-name>/`
+- per-node DHCP -> static mapping applied from Tofu inventory data
+- cluster bootstrapped via Talos
+- kubeconfig written to `~/.kube/kubeconfig-{dev|prod}.yaml`
 
-## 3) Optional feature flags
+## 3) Optional platform components (Ansible postconfig)
+
+Apply optional components with Ansible:
+
+```bash
+make postconfig-dev
+make postconfig-prod
+```
+
+## 4) Cert-manager
+
+Install cert-manager via postconfig:
+
+```bash
+make cert-manager-dev
+make cert-manager-prod
+```
+
+Optional Cloudflare token secret for DNS-01:
+
+```bash
+export CLOUDFLARE_API_TOKEN="<token>"
+make cert-manager-dev
+```
+
+`ClusterIssuer` is applied from `k8s/infra/cluster-issuer-cloudflare.yaml`.
+
+## 5) Postconfig feature flags
+
+Flags:
 
 - ArgoCD:
   - `argocd: true|false`
@@ -86,11 +122,6 @@ Expected:
 - Traefik via Helm:
   - `traefik: true|false`
   - `traefik_chart_version: "<chart-version>"`
-- cert-manager:
-  - `cert_manager: true|false`
-  - `cert_manager_version: "<chart-version>"`
-  - `cert_manager_create_cloudflare_secret: true|false`
-  - `cloudflare_email: "<email>"`
 - Longhorn via Helm:
   - `longhorn: true|false`
   - `longhorn_chart_version: "<chart-version>"`
@@ -107,6 +138,6 @@ These are set per environment in:
 - `ansible/inventory/dev/group_vars/all.yml`
 - `ansible/inventory/prod/group_vars/all.yml`
 
-## 4) Next step
+## 6) Next step
 
 Deploy manifests via [docs/k8s-ops.md](k8s-ops.md).

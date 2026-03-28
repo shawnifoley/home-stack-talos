@@ -30,3 +30,12 @@
   when:
     - cert_manager_create_cloudflare_secret | bool
     - cloudflare_api_token | length > 0
+
+- name: Apply Cloudflare ClusterIssuer
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_yaml }}"
+    definition: "{{ lookup('ansible.builtin.template', 'cluster-issuer-cloudflare.yaml.j2') | from_yaml }}"
+  when:
+    - cert_manager_create_cloudflare_secret | bool
+    - cloudflare_email | default('') | length > 0

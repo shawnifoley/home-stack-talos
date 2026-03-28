@@ -1,6 +1,0 @@
-token: {{ token }}
-{% if k3s_api_vip is defined and (k3s_api_vip | string | length > 0) %}
-server: https://{{ k3s_api_vip }}:{{ k3s_api_port | default(6443) }}
-{% else %}
-server: https://{{ master_ip }}:{{ k3s_api_port | default(6443) }}
-{% endif %}

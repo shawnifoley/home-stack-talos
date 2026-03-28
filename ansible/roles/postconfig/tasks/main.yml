@@ -4,20 +4,11 @@
     path: "{{ kubeconfig_yaml }}"
   register: kubeconfig_path
 
-- name: Point kubeconfig to the API endpoint
-  ansible.builtin.replace:
-    path: "{{ kubeconfig_yaml }}"
-    regexp: 'https://(127\.0\.0\.1|localhost):6443'
-    replace: "https://{{ k3s_api_vip | default(master_ip) }}:6443"
-  when:
-    - kubeconfig_path.stat.exists
-    - copy_kubeconfig | bool
-
-- name: Lock down kubeconfig permissions
-  ansible.builtin.file:
-    path: "{{ kubeconfig_yaml }}"
-    mode: "0600"
-  when: kubeconfig_path.stat.exists
+- name: Fail if kubeconfig is missing
+  ansible.builtin.assert:
+    that:
+      - kubeconfig_path.stat.exists
+    fail_msg: "kubeconfig not found at {{ kubeconfig_yaml }}. Run bootstrap first."
 
 - name: Include MetalLB tasks
   ansible.builtin.include_tasks: metallb.yml
@@ -25,10 +16,14 @@
 
 - name: Include cert-manager tasks
   ansible.builtin.include_tasks: cert_manager.yml
-  when: cert_manager | bool
+  when: cert_manager | default(false) | bool
 
 - name: Include Longhorn tasks
   ansible.builtin.include_tasks: longhorn.yml
+  when: longhorn | bool
+
+- name: Normalize Longhorn StorageClass defaults
+  ansible.builtin.include_tasks: storageclass_defaults.yml
   when: longhorn | bool
 
 - name: Include monitoring tasks

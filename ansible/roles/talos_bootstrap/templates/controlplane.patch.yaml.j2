@@ -1,0 +1,36 @@
+machine:
+{% if talos_install_image is defined and (talos_install_image | string | length > 0) %}
+  install:
+    image: {{ talos_install_image }}
+{% endif %}
+{% if talos_remove_exclude_lb_label | default(true) | bool %}
+  nodeLabels:
+    node.kubernetes.io/exclude-from-external-load-balancers:
+      $patch: delete
+{% endif %}
+  time:
+    servers:
+{% for ntp in talos_ntp_servers | default(['opnsense.fol3y.us']) %}
+      - {{ ntp }}
+{% endfor %}
+  network:
+    interfaces:
+      - interface: {{ talos_interface }}
+        dhcp: false
+        addresses:
+          - {{ hostvars[host].talos_static_ip | default(hostvars[host].ansible_host | default(host)) }}/{{ talos_prefix }}
+        routes:
+          - network: 0.0.0.0/0
+            gateway: {{ talos_gateway }}
+    nameservers:
+{% for ns in talos_nameservers | default([]) %}
+      - {{ ns }}
+{% endfor %}
+{% if talos_allow_scheduling_on_controlplanes | default(true) | bool %}
+cluster:
+  allowSchedulingOnControlPlanes: true
+{% endif %}
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+hostname: {{ hostvars[host].talos_hostname | default(host) }}

@@ -11,4 +11,4 @@ spec:
   storageClassName: replace-me
   resources:
     requests:
-      storage: 2Gi
+      storage: 4Gi

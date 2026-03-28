@@ -14,23 +14,11 @@
     src: "https://raw.githubusercontent.com/argoproj/argo-cd/{{ argocd_version }}/manifests/install.yaml"
     namespace: argocd
 
-- name: Ensure cert-manager is enabled for ArgoCD TLS flow
-  ansible.builtin.assert:
-    that:
-      - cert_manager | bool
-    fail_msg: "argocd requires cert_manager=true for ClusterIssuer and TLS ingress."
-
 - name: Ensure Traefik is enabled for ArgoCD ingress
   ansible.builtin.assert:
     that:
       - traefik | bool
     fail_msg: "argocd requires traefik=true to expose ArgoCD ingress."
-
-- name: Apply ClusterIssuer for ArgoCD certificates
-  kubernetes.core.k8s:
-    kubeconfig: "{{ kubeconfig_yaml }}"
-    state: present
-    definition: "{{ lookup('ansible.builtin.template', 'cluster-issuer-cloudflare.yaml.j2') | from_yaml }}"
 
 - name: Wait for ClusterIssuer letsencrypt-cloudflare to be ready
   kubernetes.core.k8s:

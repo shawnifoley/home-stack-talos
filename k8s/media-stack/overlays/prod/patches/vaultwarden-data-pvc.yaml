@@ -4,4 +4,4 @@ metadata:
   name: vaultwarden-data
   namespace: media
 spec:
-  storageClassName: longhorn
+  storageClassName: longhorn-single

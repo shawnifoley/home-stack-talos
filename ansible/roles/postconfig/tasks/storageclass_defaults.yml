@@ -1,0 +1,35 @@
+---
+- name: Get StorageClasses
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_yaml }}"
+    api_version: storage.k8s.io/v1
+    kind: StorageClass
+  register: storageclasses_info
+
+- name: Set longhorn-single as default StorageClass
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig_yaml }}"
+    state: patched
+    api_version: storage.k8s.io/v1
+    kind: StorageClass
+    name: longhorn-single
+    definition:
+      metadata:
+        annotations:
+          storageclass.kubernetes.io/is-default-class: "true"
+  when: >
+    (storageclasses_info.resources | selectattr('metadata.name', 'equalto', 'longhorn-single') | list | length) > 0
+
+- name: Ensure longhorn StorageClass is not default
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig_yaml }}"
+    state: patched
+    api_version: storage.k8s.io/v1
+    kind: StorageClass
+    name: longhorn
+    definition:
+      metadata:
+        annotations:
+          storageclass.kubernetes.io/is-default-class: "false"
+  when: >
+    (storageclasses_info.resources | selectattr('metadata.name', 'equalto', 'longhorn') | list | length) > 0

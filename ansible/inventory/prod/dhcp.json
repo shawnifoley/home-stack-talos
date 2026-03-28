@@ -1,0 +1,1 @@
+{"controlplane":[{"dhcp_ip":"192.168.1.124","mac":null,"name":"talos-cp1","static_ip":"192.168.1.21"}],"deployment":"prod","workers":[]}

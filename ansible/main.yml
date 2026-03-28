@@ -1,44 +1,6 @@
 ---
-- hosts: masters
-  gather_facts: true
-  become: true
-  serial: 1
-  roles:
-    - role: k3s/nodes
-#    - role: k3s/reboot
+- import_playbook: bootstrap.yml
+  when: run_bootstrap | default(true) | bool
 
-- hosts: workers
-  gather_facts: true
-  become: true
-  roles:
-    - role: k3s/nodes
-#    - role: k3s/reboot
-
-- hosts: localhost
-  connection: local
-  gather_facts: false
-
-  vars:
-    cloudflare_api_token: "{{ lookup('env', 'CLOUDFLARE_API_TOKEN') | default('', true) }}"
-
-  pre_tasks:
-    - name: Prompt for Cloudflare API token if not provided via ENV
-      ansible.builtin.pause:
-        prompt: "Enter your Cloudflare API token"
-        echo: no
-      register: cf_token_prompt
-      when:
-        - cert_manager | bool
-        - cert_manager_create_cloudflare_secret | bool
-        - cloudflare_api_token | length == 0
-
-    - name: Set Cloudflare API token from prompt
-      ansible.builtin.set_fact:
-        cloudflare_api_token: "{{ cf_token_prompt.user_input }}"
-      when:
-        - cert_manager | bool
-        - cert_manager_create_cloudflare_secret | bool
-        - cloudflare_api_token | length == 0
-
-  roles:
-    - role: postconfig/localhost
+- import_playbook: postconfig.yml
+  when: run_postconfig | default(true) | bool

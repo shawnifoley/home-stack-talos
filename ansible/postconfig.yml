@@ -1,9 +1,29 @@
 ---
 - hosts: localhost
   connection: local
-  vars_prompt:
-    - name: cloudflare_api_token
-      prompt: "Enter your Cloudflare API token"
-      private: true
+  gather_facts: false
+
+  vars:
+    cloudflare_api_token: "{{ lookup('env', 'CLOUDFLARE_API_TOKEN') | default('', true) }}"
+
+  pre_tasks:
+    - name: Prompt for Cloudflare API token if not provided via ENV
+      ansible.builtin.pause:
+        prompt: "Enter your Cloudflare API token"
+        echo: no
+      register: cf_token_prompt
+      when:
+        - cert_manager | default(false) | bool
+        - cert_manager_create_cloudflare_secret | default(false) | bool
+        - cloudflare_api_token | length == 0
+
+    - name: Set Cloudflare API token from prompt
+      ansible.builtin.set_fact:
+        cloudflare_api_token: "{{ cf_token_prompt.user_input }}"
+      when:
+        - cert_manager | default(false) | bool
+        - cert_manager_create_cloudflare_secret | default(false) | bool
+        - cloudflare_api_token | length == 0
+
   roles:
-    - role: postconfig/localhost
+    - role: postconfig

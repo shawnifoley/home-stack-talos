@@ -11,13 +11,6 @@ variable "pm_api_password" {
   sensitive   = true
 }
 
-variable "vm_user_password" {
-  description = "Optional password for the VM host user. Prefer SSH keys."
-  type        = string
-  sensitive   = true
-  default     = null
-}
-
 variable "pm_tls_insecure" {
   description = "Set to true to ignore certificate errors"
   type        = bool
@@ -35,27 +28,10 @@ variable "pm_node_name" {
   default     = "pve"
 }
 
-variable "host_user" {
-  description = "The username for the host user"
-  type        = string
-}
-
 variable "deployment_name" {
   description = "Deployment/environment name used for VM naming and inventory output (e.g. dev, prod)"
   type        = string
   default     = "dev"
-}
-
-variable "pvt_key" {
-  description = "Path to the private key file"
-  type        = string
-  default     = "~/.ssh/id_rsa"
-}
-
-variable "pub_key" {
-  description = "Path to the public key file"
-  type        = string
-  default     = "~/.ssh/id_rsa.pub"
 }
 
 variable "cpu_cores" {
@@ -63,12 +39,17 @@ variable "cpu_cores" {
   default = 2
 }
 
-variable "num_k3s_masters_mem" {
+variable "cpu_type" {
+  type    = string
+  default = "x86-64-v2"
+}
+
+variable "num_controlplane_mem" {
   type    = number
   default = 4096
 }
 
-variable "num_k3s_workers_mem" {
+variable "num_worker_mem" {
   type    = number
   default = 4096
 }
@@ -85,9 +66,19 @@ variable "tags" {
   type = list(string)
 }
 
-variable "master_ips" {
+variable "controlplane_ips" {
   type        = list(string)
-  description = "List of ip addresses for master nodes"
+  description = "List of IP addresses for Talos control plane nodes"
+}
+
+variable "controlplane_macs" {
+  type        = list(string)
+  description = "Optional MAC addresses for control plane nodes; must match controlplane_ips order"
+  default     = []
+  validation {
+    condition     = length(var.controlplane_macs) == 0 || length(var.controlplane_macs) == length(var.controlplane_ips)
+    error_message = "controlplane_macs must be empty or match the length of controlplane_ips."
+  }
 }
 
 variable "worker_ips" {
@@ -95,14 +86,14 @@ variable "worker_ips" {
   description = "List of ip addresses for worker nodes"
 }
 
-variable "networkrange" {
-  type    = number
-  default = 24
-}
-
-variable "gateway" {
-  type    = string
-  default = "192.168.1.254"
+variable "worker_macs" {
+  type        = list(string)
+  description = "Optional MAC addresses for worker nodes; must match worker_ips order"
+  default     = []
+  validation {
+    condition     = length(var.worker_macs) == 0 || length(var.worker_macs) == length(var.worker_ips)
+    error_message = "worker_macs must be empty or match the length of worker_ips."
+  }
 }
 
 variable "net_bridge" {
