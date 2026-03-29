@@ -2,9 +2,23 @@
 
 TOFU ?= tofu
 ANSIBLE_PLAYBOOK ?= ansible-playbook
+KUBECTL ?= kubectl
 
 TOFU_DIR := tofu
 ANSIBLE_DIR := ansible
+K8S_ENV ?= prod
+KUBECONFIG_DEV := $(HOME)/.kube/kubeconfig-dev.yaml
+KUBECONFIG_PROD := $(HOME)/.kube/kubeconfig-prod.yaml
+
+ifeq ($(K8S_ENV),dev)
+KUBECONFIG_AUTO := $(KUBECONFIG_DEV)
+else ifeq ($(K8S_ENV),prod)
+KUBECONFIG_AUTO := $(KUBECONFIG_PROD)
+else
+$(error Invalid K8S_ENV='$(K8S_ENV)' (expected: dev or prod))
+endif
+
+KUBECONFIG ?= $(KUBECONFIG_AUTO)
 
 DEV_STATE := terraform.dev.tfstate
 PROD_STATE := terraform.prod.tfstate
@@ -15,17 +29,27 @@ PROD_VARS := variables.prod.tfvars
 	tofu-init tofu-plan-dev tofu-apply-dev tofu-destroy-dev tofu-plan-prod tofu-apply-prod tofu-destroy-prod \
 	bootstrap-dev bootstrap-prod postconfig-dev postconfig-prod \
 	bootstrap-dev-check bootstrap-prod-check postconfig-dev-check postconfig-prod-check \
-	talos-dev talos-prod ansible-dev ansible-prod
+	talos-dev talos-prod ansible-dev ansible-prod \
+	k8s-validate k8s-wait-ready k8s-apply-infra k8s-apply-media k8s-apply-prod
 
 help:
 	@echo "Targets:"
-	@echo "  tofu-init"
-	@echo "  tofu-plan-dev | tofu-apply-dev | tofu-destroy-dev"
-	@echo "  tofu-plan-prod | tofu-apply-prod | tofu-destroy-prod"
-	@echo "  bootstrap-dev | bootstrap-prod"
-	@echo "  postconfig-dev | postconfig-prod"
-	@echo "  bootstrap-dev-check | bootstrap-prod-check"
-	@echo "  postconfig-dev-check | postconfig-prod-check"
+	@echo "< tofu | build VM's in proxmox >"
+	@echo "    tofu-init"
+	@echo "    tofu-plan-dev -> tofu-apply-dev | tofu-destroy-dev"
+	@echo "    tofu-plan-prod -> tofu-apply-prod | tofu-destroy-prod"
+	@echo "< ansible | bootstrap talos -> postconfig >"
+	@echo "    bootstrap-dev -> postconfig-dev"
+	@echo "    bootstrap-prod -> postconfig-prod"
+	@echo "< ansible roles check >"
+	@echo "    bootstrap-dev-check | bootstrap-prod-check"
+	@echo "    postconfig-dev-check | postconfig-prod-check"
+	@echo "< k8s | validate + deploy manifests >"
+	@echo "  (uses K8S_ENV=$(K8S_ENV) -> KUBECONFIG=$(KUBECONFIG))"
+	@echo "  (override with K8S_ENV=dev|prod or KUBECONFIG=/path/file)"
+	@echo "    k8s-validate"
+	@echo "    k8s-apply-infra -> k8s-wait-ready -> k8s-apply-media"
+	@echo "    k8s-apply-prod (infra + wait + media)"
 
 tofu-init:
 	$(TOFU) -chdir=$(TOFU_DIR) init
@@ -77,3 +101,19 @@ talos-dev: bootstrap-dev
 talos-prod: bootstrap-prod
 ansible-dev: postconfig-dev
 ansible-prod: postconfig-prod
+
+k8s-validate:
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) kustomize k8s/infra >/dev/null
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) kustomize k8s/media-stack/overlays/prod >/dev/null
+
+k8s-wait-ready:
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) cluster-info >/dev/null
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) wait --for=condition=Ready node --all --timeout=300s
+
+k8s-apply-infra:
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) apply -k k8s/infra
+
+k8s-apply-media: k8s-wait-ready
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) apply -k k8s/media-stack/overlays/prod
+
+k8s-apply-prod: k8s-apply-infra k8s-apply-media
