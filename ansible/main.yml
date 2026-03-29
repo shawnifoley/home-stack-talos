@@ -1,6 +1,0 @@
----
-- import_playbook: bootstrap.yml
-  when: run_bootstrap | default(true) | bool
-
-- import_playbook: postconfig.yml
-  when: run_postconfig | default(true) | bool
