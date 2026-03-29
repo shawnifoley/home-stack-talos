@@ -13,7 +13,6 @@ Single repo for home-cluster provisioning and workloads:
 3. Configure and validate backups: [docs/k8s-ops.md#longhorn-backups](docs/k8s-ops.md#longhorn-backups)
 4. Restore on a fresh cluster: [docs/longhorn-dr-runbook.md](docs/longhorn-dr-runbook.md)
 5. Troubleshooting: [docs/troubleshooting.md](docs/troubleshooting.md)
-6. Talos fresh-cluster cutover: [docs/talos-fresh-cutover.md](docs/talos-fresh-cutover.md)
 
 ## Repo Map
 

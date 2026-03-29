@@ -71,8 +71,6 @@ make talos-dev
 Make targets:
 
 ```bash
-make talos-dev-dry
-make talos-prod-dry
 make talos-dev
 make talos-prod
 ```
@@ -98,15 +96,15 @@ make postconfig-prod
 Install cert-manager via postconfig:
 
 ```bash
-make cert-manager-dev
-make cert-manager-prod
+make postconfig-dev
+make postconfig-prod
 ```
 
 Optional Cloudflare token secret for DNS-01:
 
 ```bash
 export CLOUDFLARE_API_TOKEN="<token>"
-make cert-manager-dev
+make postconfig-dev
 ```
 
 `ClusterIssuer` is applied from `k8s/infra/cluster-issuer-cloudflare.yaml`.
