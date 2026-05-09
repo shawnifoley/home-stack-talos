@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: slurmd
+  namespace: slurm
+spec:
+  selector:
+    app: slurmd
+  ports:
+    - name: slurmd
+      port: 6818
+      targetPort: 6818
+

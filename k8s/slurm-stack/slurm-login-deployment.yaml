@@ -15,13 +15,67 @@ spec:
     spec:
       containers:
         - name: slurm-login
-          image: ghcr.io/giovtorres/slurm-docker-cluster:latest
+          image: giovtorres/slurm-docker-cluster:latest
           imagePullPolicy: IfNotPresent
+          env:
+            - name: SLURM_LOGIN_USER
+              value: sfoley
+            - name: SLURM_LOGIN_UID
+              value: "1000"
           command:
             - /bin/bash
             - -lc
             - |
+              LOGIN_USER="${SLURM_LOGIN_USER:-sfoley}"
+              LOGIN_UID="${SLURM_LOGIN_UID:-1000}"
+
+              if ! command -v sudo >/dev/null 2>&1; then
+                if command -v dnf >/dev/null 2>&1; then
+                  dnf install -y sudo
+                else
+                  echo "WARNING: dnf not found; cannot install sudo in this image."
+                fi
+              fi
+
+              if ! id -u "${LOGIN_USER}" >/dev/null 2>&1; then
+                useradd -m -u "${LOGIN_UID}" -s /bin/bash "${LOGIN_USER}"
+              fi
+              LOGIN_HOME="$(getent passwd "${LOGIN_USER}" | cut -d: -f6)"
+              if [ -z "${LOGIN_HOME}" ]; then
+                LOGIN_HOME="/home/${LOGIN_USER}"
+              fi
+              mkdir -p "${LOGIN_HOME}"
+              chown -R "${LOGIN_USER}:${LOGIN_USER}" "${LOGIN_HOME}"
+
+              mkdir -p "${LOGIN_HOME}/.ssh"
+              if [ -f /run/ssh-authorized-key/authorized_key ]; then
+                cp /run/ssh-authorized-key/authorized_key "${LOGIN_HOME}/.ssh/authorized_keys"
+              fi
+              chmod 700 "${LOGIN_HOME}/.ssh"
+              chmod 600 "${LOGIN_HOME}/.ssh/authorized_keys" || true
+              chown -R "${LOGIN_USER}:${LOGIN_USER}" "${LOGIN_HOME}/.ssh"
+
+              if command -v sudo >/dev/null 2>&1; then
+                if getent group sudo >/dev/null 2>&1; then
+                  usermod -aG sudo "${LOGIN_USER}" || true
+                elif getent group wheel >/dev/null 2>&1; then
+                  usermod -aG wheel "${LOGIN_USER}" || true
+                fi
+                mkdir -p /etc/sudoers.d
+                echo "${LOGIN_USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-"${LOGIN_USER}"
+                chmod 0440 /etc/sudoers.d/90-"${LOGIN_USER}"
+              else
+                echo "WARNING: sudo unavailable; skipping sudoers config."
+              fi
+
               munged --foreground --force &
+              if command -v sshd >/dev/null 2>&1; then
+                mkdir -p /var/run/sshd
+                SSHD_BIN="$(command -v sshd)"
+                "${SSHD_BIN}" -D &
+              else
+                echo "WARNING: sshd not found in image; NodePort SSH will not work."
+              fi
               sleep infinity
           volumeMounts:
             - name: slurm-conf
@@ -30,6 +84,12 @@ spec:
             - name: munge-key
               mountPath: /etc/munge/munge.key
               subPath: munge.key
+            - name: ssh-authorized-key
+              mountPath: /run/ssh-authorized-key/authorized_key
+              subPath: authorized_key
+              readOnly: true
+            - name: slurm-home
+              mountPath: /home
       volumes:
         - name: slurm-conf
           configMap:
@@ -38,4 +98,10 @@ spec:
           secret:
             secretName: munge-key
             defaultMode: 0400
-
+        - name: ssh-authorized-key
+          secret:
+            secretName: slurm-login-authorized-key
+            defaultMode: 0400
+        - name: slurm-home
+          persistentVolumeClaim:
+            claimName: slurm-home

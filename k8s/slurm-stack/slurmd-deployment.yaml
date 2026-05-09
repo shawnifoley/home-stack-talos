@@ -13,9 +13,10 @@ spec:
       labels:
         app: slurmd
     spec:
+      hostname: slurmd
       containers:
         - name: slurmd
-          image: ghcr.io/giovtorres/slurm-docker-cluster:latest
+          image: giovtorres/slurm-docker-cluster:latest
           imagePullPolicy: IfNotPresent
           command:
             - /bin/bash
@@ -30,11 +31,16 @@ spec:
             - name: slurm-conf
               mountPath: /etc/slurm/slurm.conf
               subPath: slurm.conf
+            - name: slurm-conf
+              mountPath: /etc/slurm/cgroup.conf
+              subPath: cgroup.conf
             - name: munge-key
               mountPath: /etc/munge/munge.key
               subPath: munge.key
             - name: spool
               mountPath: /var/spool/slurmd
+            - name: slurm-home
+              mountPath: /home
       volumes:
         - name: slurm-conf
           configMap:
@@ -45,4 +51,6 @@ spec:
             defaultMode: 0400
         - name: spool
           emptyDir: {}
-
+        - name: slurm-home
+          persistentVolumeClaim:
+            claimName: slurm-home

@@ -8,7 +8,9 @@ talos_nameservers:
   - "192.168.1.254"
 talos_ntp_servers:
   - "opnsense.fol3y.us"
+  - "time.cloudflare.com"
 talos_install_image: "factory.talos.dev/installer/88d1f7a5c4f1d3aba7df787c448c1d3d008ed29cfb34af53fa0df4336a56040b:v1.12.1"
+talos_kubernetes_version: "1.35.2"
 talos_allow_scheduling_on_controlplanes: true
 talos_remove_exclude_lb_label: true
 
@@ -16,20 +18,20 @@ argocd: false
 argocd_version: "v3.3.1"
 argocd_domain: "argocd.fol3y.us"
 
-traefik: true
+traefik: false
 traefik_chart_version: "v39.0.2"
 
-cert_manager: true
+cert_manager: false
 cert_manager_version: "1.17.4"
 cert_manager_create_cloudflare_secret: true
 cloudflare_email: "shawnifoley@gmail.com"
 
-longhorn: true
+longhorn: false
 longhorn_chart_version: "1.10.0"
 
 monitoring: false
 monitoring_chart_version: "77.12.0"
 
-metallb: true
+metallb: false
 metallb_version: "v0.15.3"
 metallb_range: "192.168.1.40-192.168.1.41"

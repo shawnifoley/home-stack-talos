@@ -24,6 +24,8 @@ data:
     CredType=cred/munge
     SlurmctldPort=6817
     SlurmdPort=6818
-    NodeName=slurmd CPUs=2 RealMemory=2048 State=UNKNOWN
+    NodeName=slurmd NodeAddr=slurmd.slurm.svc.cluster.local CPUs=4 Sockets=1 CoresPerSocket=4 ThreadsPerCore=1 RealMemory=4096 State=UNKNOWN
     PartitionName=debug Nodes=slurmd Default=YES MaxTime=INFINITE State=UP
-
+  cgroup.conf: |
+    CgroupPlugin=disabled
+    IgnoreSystemd=yes

@@ -13,9 +13,10 @@ spec:
       labels:
         app: slurmctld
     spec:
+      hostname: slurmctld
       containers:
         - name: slurmctld
-          image: ghcr.io/giovtorres/slurm-docker-cluster:latest
+          image: giovtorres/slurm-docker-cluster:latest
           imagePullPolicy: IfNotPresent
           command:
             - /bin/bash
@@ -45,4 +46,3 @@ spec:
             defaultMode: 0400
         - name: state
           emptyDir: {}
-

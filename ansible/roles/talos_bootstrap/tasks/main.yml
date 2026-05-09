@@ -55,6 +55,9 @@
   ansible.builtin.command: >
     talosctl gen config {{ talos_cluster_name }}
     https://{{ talos_endpoint_effective }}:6443
+    {% if talos_kubernetes_version is defined and (talos_kubernetes_version | string | length > 0) %}
+    --kubernetes-version {{ talos_kubernetes_version }}
+    {% endif %}
     --output-dir {{ talos_config_dir }}
   when: not talosconfig_stat.stat.exists
   changed_when: true

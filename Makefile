@@ -9,6 +9,7 @@ ANSIBLE_DIR := ansible
 K8S_ENV ?= prod
 KUBECONFIG_DEV := $(HOME)/.kube/kubeconfig-dev.yaml
 KUBECONFIG_PROD := $(HOME)/.kube/kubeconfig-prod.yaml
+SLURM_SSH_PUBKEY_PATH ?= $(HOME)/.ssh/id_ed25519.pub
 
 ifeq ($(K8S_ENV),dev)
 KUBECONFIG_AUTO := $(KUBECONFIG_DEV)
@@ -31,7 +32,7 @@ PROD_VARS := variables.prod.tfvars
 	bootstrap-dev-check bootstrap-prod-check postconfig-dev-check postconfig-prod-check \
 	talos-dev talos-prod ansible-dev ansible-prod \
 	k8s-validate k8s-wait-ready k8s-apply-infra k8s-apply-media k8s-apply-prod \
-	k8s-validate-slurm k8s-slurm-munge-secret k8s-apply-slurm k8s-delete-slurm
+	k8s-validate-slurm k8s-slurm-munge-secret k8s-slurm-ssh-key-secret k8s-slurm-munge-rotate k8s-apply-slurm k8s-delete-slurm
 
 help:
 	@echo "Targets:"
@@ -53,6 +54,8 @@ help:
 	@echo "< k8s | slurm playground >"
 	@echo "    k8s-validate-slurm"
 	@echo "    k8s-slurm-munge-secret"
+	@echo "    k8s-slurm-ssh-key-secret (SLURM_SSH_PUBKEY_PATH=...)"
+	@echo "    k8s-slurm-munge-rotate"
 	@echo "    k8s-apply-slurm"
 	@echo "    k8s-delete-slurm"
 
@@ -128,10 +131,29 @@ k8s-validate-slurm:
 
 k8s-slurm-munge-secret:
 	$(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm create namespace slurm --dry-run=client -o yaml | $(KUBECTL) --kubeconfig=$(KUBECONFIG) apply -f -
+	@if ! $(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm get secret munge-key >/dev/null 2>&1; then \
+		$(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm create secret generic munge-key --from-literal=munge.key="$$(openssl rand -base64 1024 | tr -d '\n')"; \
+	else \
+		echo "munge-key secret already exists; leaving it unchanged."; \
+	fi
+
+k8s-slurm-ssh-key-secret:
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm create namespace slurm --dry-run=client -o yaml | $(KUBECTL) --kubeconfig=$(KUBECONFIG) apply -f -
+	@test -f "$(SLURM_SSH_PUBKEY_PATH)" || (echo "Missing SSH public key: $(SLURM_SSH_PUBKEY_PATH)" && exit 1)
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm create secret generic slurm-login-authorized-key \
+		--from-file=authorized_key="$(SLURM_SSH_PUBKEY_PATH)" \
+		--dry-run=client -o yaml | $(KUBECTL) --kubeconfig=$(KUBECONFIG) apply -f -
+
+k8s-slurm-munge-rotate:
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm create namespace slurm --dry-run=client -o yaml | $(KUBECTL) --kubeconfig=$(KUBECONFIG) apply -f -
 	$(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm delete secret munge-key --ignore-not-found
 	$(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm create secret generic munge-key --from-literal=munge.key="$$(openssl rand -base64 1024 | tr -d '\n')"
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm rollout restart deploy/slurmctld deploy/slurmd deploy/slurm-login
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm rollout status deploy/slurmctld
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm rollout status deploy/slurmd
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm rollout status deploy/slurm-login
 
-k8s-apply-slurm: k8s-wait-ready k8s-slurm-munge-secret
+k8s-apply-slurm: k8s-wait-ready k8s-slurm-munge-secret k8s-slurm-ssh-key-secret
 	$(KUBECTL) --kubeconfig=$(KUBECONFIG) apply -k k8s/slurm-stack
 
 k8s-delete-slurm:
