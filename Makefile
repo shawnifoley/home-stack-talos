@@ -31,7 +31,7 @@ PROD_VARS := variables.prod.tfvars
 	bootstrap-dev-check bootstrap-prod-check postconfig-dev-check postconfig-prod-check \
 	talos-dev talos-prod ansible-dev ansible-prod \
 	k8s-validate k8s-wait-ready k8s-apply-infra k8s-apply-media k8s-apply-prod \
-	k8s-validate-slurm k8s-apply-slurm k8s-delete-slurm
+	k8s-validate-slurm k8s-slurm-munge-secret k8s-apply-slurm k8s-delete-slurm
 
 help:
 	@echo "Targets:"
@@ -52,6 +52,7 @@ help:
 	@echo "    k8s-apply-prod (infra + wait + media)"
 	@echo "< k8s | slurm playground >"
 	@echo "    k8s-validate-slurm"
+	@echo "    k8s-slurm-munge-secret"
 	@echo "    k8s-apply-slurm"
 	@echo "    k8s-delete-slurm"
 
@@ -125,7 +126,12 @@ k8s-apply-prod: k8s-apply-infra k8s-apply-media
 k8s-validate-slurm:
 	$(KUBECTL) --kubeconfig=$(KUBECONFIG) kustomize k8s/slurm-stack >/dev/null
 
-k8s-apply-slurm: k8s-wait-ready
+k8s-slurm-munge-secret:
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm create namespace slurm --dry-run=client -o yaml | $(KUBECTL) --kubeconfig=$(KUBECONFIG) apply -f -
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm delete secret munge-key --ignore-not-found
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) -n slurm create secret generic munge-key --from-literal=munge.key="$$(openssl rand -base64 1024 | tr -d '\n')"
+
+k8s-apply-slurm: k8s-wait-ready k8s-slurm-munge-secret
 	$(KUBECTL) --kubeconfig=$(KUBECONFIG) apply -k k8s/slurm-stack
 
 k8s-delete-slurm:

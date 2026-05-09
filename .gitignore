@@ -3,3 +3,5 @@ tofu/terraform*.tfstate.backup
 tofu/.terraform
 tofu/.terraform.tfstate.lock.info
 scripts/talos/generated/*.dhcp.json
+k8s/slurm-stack/munge-secret.yaml
+k8s/slurm-stack/*.key

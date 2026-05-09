@@ -5,7 +5,7 @@ Lightweight Slurm playground stack for Kubernetes.
 ## Apply
 
 ```bash
-kubectl apply -k k8s/slurm-stack
+make k8s-apply-slurm
 ```
 
 ## Preview
@@ -17,7 +17,8 @@ kubectl kustomize k8s/slurm-stack
 ## Notes
 
 - This is a lab baseline for experimenting, not a hardened production Slurm deployment.
-- Set a real `munge.key` in `munge-secret.yaml` before use.
+- `munge-secret.example.yaml` is a template only.
+- `make k8s-apply-slurm` auto-generates/rotates the in-cluster `munge-key` secret.
 - Current image: `ghcr.io/giovtorres/slurm-docker-cluster:latest`.
 
 ## Login Workflow
