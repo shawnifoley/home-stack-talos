@@ -59,4 +59,4 @@ spec:
                 claimName: radarr-config
             - name: backup
               persistentVolumeClaim:
-                claimName: nfs-export-root
+                claimName: nfs-tank-root

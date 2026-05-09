@@ -4,4 +4,4 @@ metadata:
   name: sonarr-config
   namespace: media
 spec:
-  storageClassName: longhorn-single
+  storageClassName: longhorn

@@ -64,4 +64,4 @@ spec:
                 claimName: vaultwarden-data
             - name: backup
               persistentVolumeClaim:
-                claimName: nfs-export-root
+                claimName: nfs-tank-root

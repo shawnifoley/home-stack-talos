@@ -4,4 +4,4 @@ metadata:
   name: mealie-data
   namespace: media
 spec:
-  storageClassName: longhorn-single
+  storageClassName: longhorn

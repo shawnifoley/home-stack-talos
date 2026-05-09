@@ -4,4 +4,4 @@ metadata:
   name: radarr-config
   namespace: media
 spec:
-  storageClassName: longhorn-single
+  storageClassName: longhorn

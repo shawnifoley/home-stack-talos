@@ -49,4 +49,4 @@ spec:
             claimName: vaultwarden-data
         - name: media-root
           persistentVolumeClaim:
-            claimName: nfs-export-root
+            claimName: nfs-tank-root
