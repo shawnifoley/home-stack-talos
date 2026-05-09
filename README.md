@@ -20,5 +20,6 @@ Single repo for home-cluster provisioning and workloads:
 - `ansible/`: optional post-bootstrap platform configuration
 - `k8s/infra/`: cluster-level resources (Longhorn/NFS/cert-manager)
 - `k8s/media-stack/`: app stack manifests (Sabnzbd/Sonarr/Radarr/Vaultwarden/Mealie)
+- `k8s/slurm-stack/`: Slurm playground manifests
 - `k8s/argocd/`: ArgoCD `Application` definitions
 - `docs/`: operational runbooks

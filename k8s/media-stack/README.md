@@ -5,13 +5,13 @@ This folder organizes Sabnzbd, Sonarr, Radarr, Vaultwarden, and Mealie into a re
 ## Apply
 
 ```bash
-kubectl apply -k k8s/media-stack/overlays/prod
+kubectl apply -k k8s/media-stack
 ```
 
 ## Preview
 
 ```bash
-kubectl kustomize k8s/media-stack/overlays/prod
+kubectl kustomize k8s/media-stack
 ```
 
 ## Layout

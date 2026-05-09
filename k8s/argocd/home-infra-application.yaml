@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/shawnifoley/home-stack-talos.git
-    targetRevision: main
+    targetRevision: master
     path: k8s/infra
   destination:
     server: https://kubernetes.default.svc

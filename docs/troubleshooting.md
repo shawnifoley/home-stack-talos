@@ -8,14 +8,14 @@ Validate manifests first:
 
 ```bash
 kubectl kustomize k8s/infra
-kubectl kustomize k8s/media-stack/overlays/prod
+kubectl kustomize k8s/media-stack
 ```
 
 Apply in order:
 
 ```bash
 kubectl apply -k k8s/infra
-kubectl apply -k k8s/media-stack/overlays/prod
+kubectl apply -k k8s/media-stack
 ```
 
 ## 2) Pods Pending (PVC or storage issues)

@@ -4,14 +4,14 @@
 
 ```bash
 kubectl apply -k k8s/infra
-kubectl apply -k k8s/media-stack/overlays/prod
+kubectl apply -k k8s/media-stack
 ```
 
 ## Validate
 
 ```bash
 kubectl kustomize k8s/infra
-kubectl kustomize k8s/media-stack/overlays/prod
+kubectl kustomize k8s/media-stack
 
 kubectl rollout status deployment/sabnzbd -n media
 kubectl rollout status deployment/sonarr -n media

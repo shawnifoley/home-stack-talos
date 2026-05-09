@@ -39,7 +39,7 @@ Expected: backup objects exist for Sonarr, Radarr, Vaultwarden, and Mealie.
 Apply stack and take services down
 
 ```bash
-kubectl apply -k k8s/media-stack/overlays/prod
+kubectl apply -k k8s/media-stack
 ```
 
 Scale workloads down before restore:

@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slurmd
+  namespace: slurm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: slurmd
+  template:
+    metadata:
+      labels:
+        app: slurmd
+    spec:
+      containers:
+        - name: slurmd
+          image: ghcr.io/giovtorres/slurm-docker-cluster:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              munged --foreground --force &
+              sleep 2
+              slurmd -Dvvv
+          ports:
+            - containerPort: 6818
+          volumeMounts:
+            - name: slurm-conf
+              mountPath: /etc/slurm/slurm.conf
+              subPath: slurm.conf
+            - name: munge-key
+              mountPath: /etc/munge/munge.key
+              subPath: munge.key
+            - name: spool
+              mountPath: /var/spool/slurmd
+      volumes:
+        - name: slurm-conf
+          configMap:
+            name: slurm-config
+        - name: munge-key
+          secret:
+            secretName: munge-key
+            defaultMode: 0400
+        - name: spool
+          emptyDir: {}
+

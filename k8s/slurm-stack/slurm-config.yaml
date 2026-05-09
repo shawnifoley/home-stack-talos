@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slurm-config
+  namespace: slurm
+data:
+  slurm.conf: |
+    ClusterName=k8s-slurm
+    SlurmctldHost=slurmctld
+    MpiDefault=none
+    ProctrackType=proctrack/linuxproc
+    ReturnToService=2
+    SlurmctldPidFile=/var/run/slurmctld.pid
+    SlurmdPidFile=/var/run/slurmd.pid
+    SlurmdSpoolDir=/var/spool/slurmd
+    SlurmUser=root
+    StateSaveLocation=/var/spool/slurmctld
+    SwitchType=switch/none
+    TaskPlugin=task/none
+    SchedulerType=sched/backfill
+    SelectType=select/cons_tres
+    SelectTypeParameters=CR_Core
+    AuthType=auth/munge
+    CredType=cred/munge
+    SlurmctldPort=6817
+    SlurmdPort=6818
+    NodeName=slurmd CPUs=2 RealMemory=2048 State=UNKNOWN
+    PartitionName=debug Nodes=slurmd Default=YES MaxTime=INFINITE State=UP
+

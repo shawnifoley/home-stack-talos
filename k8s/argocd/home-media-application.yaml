@@ -9,8 +9,8 @@ spec:
   project: default
   source:
     repoURL: https://github.com/shawnifoley/home-stack-talos.git
-    targetRevision: main
-    path: k8s/media-stack/overlays/prod
+    targetRevision: master
+    path: k8s/media-stack
   destination:
     server: https://kubernetes.default.svc
     namespace: default

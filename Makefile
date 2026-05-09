@@ -30,7 +30,8 @@ PROD_VARS := variables.prod.tfvars
 	bootstrap-dev bootstrap-prod postconfig-dev postconfig-prod \
 	bootstrap-dev-check bootstrap-prod-check postconfig-dev-check postconfig-prod-check \
 	talos-dev talos-prod ansible-dev ansible-prod \
-	k8s-validate k8s-wait-ready k8s-apply-infra k8s-apply-media k8s-apply-prod
+	k8s-validate k8s-wait-ready k8s-apply-infra k8s-apply-media k8s-apply-prod \
+	k8s-validate-slurm k8s-apply-slurm k8s-delete-slurm
 
 help:
 	@echo "Targets:"
@@ -49,6 +50,10 @@ help:
 	@echo "    k8s-validate"
 	@echo "    k8s-apply-infra -> k8s-wait-ready -> k8s-apply-media"
 	@echo "    k8s-apply-prod (infra + wait + media)"
+	@echo "< k8s | slurm playground >"
+	@echo "    k8s-validate-slurm"
+	@echo "    k8s-apply-slurm"
+	@echo "    k8s-delete-slurm"
 
 tofu-init:
 	$(TOFU) -chdir=$(TOFU_DIR) init
@@ -103,7 +108,7 @@ ansible-prod: postconfig-prod
 
 k8s-validate:
 	$(KUBECTL) --kubeconfig=$(KUBECONFIG) kustomize k8s/infra >/dev/null
-	$(KUBECTL) --kubeconfig=$(KUBECONFIG) kustomize k8s/media-stack/overlays/prod >/dev/null
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) kustomize k8s/media-stack >/dev/null
 
 k8s-wait-ready:
 	$(KUBECTL) --kubeconfig=$(KUBECONFIG) cluster-info >/dev/null
@@ -113,6 +118,15 @@ k8s-apply-infra:
 	$(KUBECTL) --kubeconfig=$(KUBECONFIG) apply -k k8s/infra
 
 k8s-apply-media: k8s-wait-ready
-	$(KUBECTL) --kubeconfig=$(KUBECONFIG) apply -k k8s/media-stack/overlays/prod
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) apply -k k8s/media-stack
 
 k8s-apply-prod: k8s-apply-infra k8s-apply-media
+
+k8s-validate-slurm:
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) kustomize k8s/slurm-stack >/dev/null
+
+k8s-apply-slurm: k8s-wait-ready
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) apply -k k8s/slurm-stack
+
+k8s-delete-slurm:
+	$(KUBECTL) --kubeconfig=$(KUBECONFIG) delete -k k8s/slurm-stack
