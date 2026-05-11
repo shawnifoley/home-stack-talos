@@ -80,7 +80,7 @@ resource "proxmox_virtual_environment_vm" "proxmox_vm_workers" {
 
 resource "local_file" "k8s_file" {
   content = templatefile("./templates/k8s.tpl", {
-    k3s_master_nodes = [
+    k8s_master_nodes = [
       for idx, instance in proxmox_virtual_environment_vm.proxmox_vm_controlplane : {
         name      = instance.name
         static_ip = var.controlplane_ips[idx]
@@ -93,7 +93,7 @@ resource "local_file" "k8s_file" {
         )
       }
     ]
-    k3s_worker_nodes = [
+    k8s_worker_nodes = [
       for idx, instance in proxmox_virtual_environment_vm.proxmox_vm_workers : {
         name      = instance.name
         static_ip = var.worker_ips[idx]
